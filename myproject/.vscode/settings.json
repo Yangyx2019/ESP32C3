@@ -1,0 +1,26 @@
+{
+  "C_Cpp.intelliSenseEngine": "Tag Parser",
+  "files.associations": {
+    "optional": "c",
+    "istream": "c",
+    "ostream": "c",
+    "ratio": "c",
+    "system_error": "c",
+    "array": "c",
+    "functional": "c",
+    "tuple": "c",
+    "type_traits": "c",
+    "utility": "c",
+    "esp_gatt_common_api.h": "c",
+    "err.h": "c",
+    "sdkconfig.h": "c",
+    "*.inc": "c",
+    "sys.h": "c"
+  },
+  "idf.flashType": "UART",
+  "idf.portWin": "COM1",
+  "idf.adapterTargetName": "esp32c3",
+  "idf.openOcdConfigs": [
+    "board/esp32c3-bridge.cfg"
+  ]
+}
