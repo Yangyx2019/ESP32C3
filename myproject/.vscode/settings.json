@@ -15,7 +15,8 @@
     "err.h": "c",
     "sdkconfig.h": "c",
     "*.inc": "c",
-    "sys.h": "c"
+    "sys.h": "c",
+    "stdlib.h": "c"
   },
   "idf.flashType": "UART",
   "idf.portWin": "COM1",

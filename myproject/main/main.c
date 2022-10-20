@@ -23,6 +23,8 @@
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "esp_system.h"
+#include "driver/uart.h"
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_bt.h"
@@ -65,6 +67,16 @@ static void gatts_profile_b_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
 
 #define PREPARE_BUF_MAX_SIZE 1024
 
+#define ECHO_TEST_TXD (4)
+#define ECHO_TEST_RXD (5)
+#define ECHO_TEST_RTS (UART_PIN_NO_CHANGE)
+#define ECHO_TEST_CTS (UART_PIN_NO_CHANGE)
+
+#define ECHO_UART_PORT_NUM0      (0)
+#define ECHO_UART_PORT_NUM1         1
+#define ECHO_UART_BAUD_RATE     (115200)
+#define ECHO_TASK_STACK_SIZE    (2048)
+
 
 /* The examples use WiFi configuration that you can set via project configuration menu
 
@@ -102,6 +114,11 @@ static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
+#define BUF_SIZE 1024
+uint8_t data[BUF_SIZE]="THIS IS UART0'S DATA:.......";
+uint8_t recv[BUF_SIZE];
+
+
 // static const char *TAG = "wifi station";
 void wifi_dealer(char* ssid,char *pswd);
 static int s_retry_num = 0;
@@ -114,6 +131,9 @@ typedef struct {
 } basic_auth_info_t;
 
 #define HTTPD_401      "401 UNAUTHORIZED"           /*!< HTTP Response 401 */
+
+
+
 
 static char *http_auth_basic(const char *username, const char *password)
 {
@@ -301,14 +321,18 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
 }
 
 static const httpd_uri_t hello = {
-    .uri       = "/hello",
+    .uri       = "/uart",
     .method    = HTTP_GET,
     .handler   = hello_get_handler,
     /* Let's pass response string in user
      * context to demonstrate it's usage */
-    .user_ctx  = "Hello World!"
+     .user_ctx  = recv
 };
-
+// int i=0;
+// while(recv[i]!=0){
+//     hello.user_ctx[i]=recv[i];
+//     i++;
+// }
 /* An HTTP POST handler */
 static esp_err_t echo_post_handler(httpd_req_t *req)
 {
@@ -1281,8 +1305,60 @@ void wifi_dealer(char* ssid,char *pswd){
     server = start_webserver();
 }
 
+static void echo_task()
+{
+    uart_config_t uart_config = {
+        .baud_rate = ECHO_UART_BAUD_RATE,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_APB,
+    };//这是uart0的配置结构体
+
+
+    uart_config_t uart_config1 = {
+        .baud_rate = ECHO_UART_BAUD_RATE,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_APB,
+    };//这是uart1的配置结构体
+
+    int intr_alloc_flags = 0;
+
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif
+
+    uart_driver_install(ECHO_UART_PORT_NUM0, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags);
+    uart_param_config(ECHO_UART_PORT_NUM0, &uart_config);
+    uart_set_pin(ECHO_UART_PORT_NUM0, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS);//配置uart0的4引脚是发送，5引脚接收
+    uart_driver_install(ECHO_UART_PORT_NUM1, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags);
+    uart_param_config(ECHO_UART_PORT_NUM1, &uart_config1);
+    uart_set_pin(ECHO_UART_PORT_NUM1, 7, 8, ECHO_TEST_RTS, ECHO_TEST_CTS);//配置uart1的7引脚是发送，8引脚接收
+
+       // Write data back to the UART
+        uart_write_bytes(ECHO_UART_PORT_NUM0, (const char *) data, 30);//往uart0的发送端口写数据
+        
+        int len = uart_read_bytes(ECHO_UART_PORT_NUM1, data, (BUF_SIZE - 1), 2000 / portTICK_RATE_MS);//从uart1的读端口读数据
+        if (len) {
+            for(int i=0;i<len;i++){
+                recv[i]=data[i];//修改recv数组的内容为读到的数据
+            }
+            recv[len] = '\0';
+            ESP_LOGI(GATTS_TAG, "Recv str: %s", (char *) recv);
+        }  
+}
+//以上是uart通信
+
+
 void app_main(void)
 {
+
+    echo_task();
+    
     esp_err_t ret;
 
     // Initialize NVS.
